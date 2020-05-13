@@ -4,7 +4,9 @@ Wouldn't it be nice if we were over C19? Ok well in the mean time here's a hack 
 
 Postgres is the awesomest RDBMS out there, with some really cool stuff baked in --stored procedures in many languages, triggers, JSON-native, pubsub like pg_notify etc...(last with postgraphile/GraphQL is simply sublime). 
 
-Yet a lot of great open-source software developers have chosen mysql/mariadb/mongodb over it in the past. Personal choices cannot be discussed. So to contribute to these nice software projects (mailtrain, matomo, etc) you have to do the LAMP dance... That might turn you off, social distancing and all. You could use [pgchameleon](https://pgchameleon.org/), but that only works one way, mysql to postgres, and you now have to two copies of everything. And you now have to two copies of everything. Not so fast! Postgres allows you to interact both read and write with the data in these datastores (and more!) as if they were in postgres using Foreign Data Wrappers: FDW for the world!
+Yet a lot of great open-source software developers have chosen mysql/mariadb/mongodb over it in the past. Personal choices cannot be discussed. So to contribute to these nice software projects (mailtrain, matomo, etc) you have to do the LAMP dance... That might turn you off, social distancing and all. You could use [pgchameleon](https://pgchameleon.org/), but that only works one way, mysql to postgres, and you now have to two copies of everything. And you now have to two copies of everything.
+
+ Not so fast! Postgres allows you to interact both read and write with the data in these datastores (and more!) as if they were in postgres using Foreign Data Wrappers: FDW for the world!
 
 There's one thing, though. If you are a postgres aficionado, you most likely love triggers. Say you connect to a foreign mysql schema in postgres:
 
