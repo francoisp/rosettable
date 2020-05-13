@@ -58,7 +58,7 @@ expire_logs_days = 10          # Optional, purge old logs
 max_binlog_size  = 100M        # Optional, limit log size
 ```
 
-2. clone this repo and get depenecencies:
+2. clone this repo and get dependencies:
 ```
 npm -i
 ```
