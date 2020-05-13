@@ -26,7 +26,7 @@ But you ask, what if I modified the NEW row in the before trigger? Or set it to 
 
 ## Caveat
 
-This app adds an optional column named pgrti on the fly to any mysql table for which you add a trigger in postgres. This means that if you have inserts that do not specify the columns in your MySQL schema you'll need to edit some statements like this:
+This app adds an optional column named pgrti on the fly to any mysql table for which you add a trigger in postgres. This means that if you have inserts that do not specify the columns in your MySQL schema you'll need to edit some statements; for example:
 
 ```
 INSERT INTO employee VALUES (DEFAULT, 'MYSQLINSERT--',2);
