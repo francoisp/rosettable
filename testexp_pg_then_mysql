@@ -1,0 +1,13 @@
+ emp_id |                          emp_name                          | emp_dept_id | trigg_count 
+--------+------------------------------------------------------------+-------------+-------------
+      2 | MYSQL_first_op TRIGGER UPDATED!                            |           1 |           1
+      3 | pgupdate-- TRIGGER UPDATED!                                |           1 |           1
+      4 | emp - 4                                                    |           2 |            
+      5 | emp - 5 TRIGGER UPDATED! TRIGGER UPDATED! TRIGGER UPDATED! |           1 |           3
+      6 | MYSQL2 TRIGGER UPDATED!                                    |           2 |           1
+      7 | firsop_pg insert trigger mod!                              |           2 |           1
+      8 | runoncealice insert trigger mod!                           |           2 |           1
+     43 | alice insert trigger mod!                                  |           2 |           1
+     44 | MYSQLINSERT-- insert trigger mod!                          |           2 |           1
+(9 rows)
+
