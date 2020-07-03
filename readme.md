@@ -1,4 +1,4 @@
-## Rationale for myPgTriggers
+## Rationale for Rosettable
 
 Wouldn't it be nice if we were over C19? Ok well in the mean time here's a hack that you might like (and a [song](https://www.youtube.com/watch?v=lD4sxxoJGkA) to cheer you up while you read this): 
 
@@ -6,7 +6,7 @@ Postgres is the awesomest RDBMS out there, with some really cool stuff baked in 
 
 Yet a lot of great open-source software developers have chosen mysql/mariadb/mongodb over it in the past. Personal choices cannot be discussed. So to contribute to these nice software projects (mailtrain, matomo, etc) you have to do the LAMP dance... That might turn you off, social distancing and all. You could use [pgchameleon](https://pgchameleon.org/), but that only works one way, mysql to postgres, and you now have to two copies of everything. And you now have to two copies of everything.
 
- Not so fast! Postgres allows you to interact both read and write with the data in these datastores (and more!) as if they were in postgres using Foreign Data Wrappers: FDW for the world!
+ Not so fast! Postgres allows you to interact both read and write with the data in these datastores (and more!) as if they were in postgres using Foreign Data Wrappers: FDW for de world!
 
 There's one thing, though. If you are a postgres aficionado, you most likely love triggers. Say you connect to a foreign mysql schema in postgres:
 
@@ -69,8 +69,13 @@ npm -i
 bash ./setupandtest.sh --mysqlrootpass $mysqlrootpass --postgresport $postgresport --postgresuser $PGUSERWITHSUPER --postgrespass  $PGUSERPASS
 ```
 
-Please let me know if this is useful, cheerio, stay safe.:	[🌈]( https://www.youtube.com/watch?v=zsk6z9O1WmE)
+To use in your project, you'll need to fiddle a bit: you need to add a user to your mysql db, give it replication rights, and put those credentials as well as creds to your posgres db in the main pgTriggers.js file, and run this as a seperate process, with (if you start to dig this you should use pm2):
+```
+	node pgTriggers.js
+```
 
-PS: I'm releasing this under the GPL. If your commercial project could use this, let me know. We can do a support contract and/or a special license.
+ External configs and maybe a webservice might be coming next. Please let me know if this is useful, cheerio, stay safe.:	[🌈]( https://www.youtube.com/watch?v=zsk6z9O1WmE)
+
+PS: I'm releasing this under the GPL. If your commercial project could use this, let me know. We can do a support contract and/or a special license, or MIT. 
 
 PPS: Same if you'd like to see a version for MongoDB, Oracle, MSSQL etc, please get in touch we'll work something out.
