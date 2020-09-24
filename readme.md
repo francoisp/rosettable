@@ -67,11 +67,11 @@ expire_logs_days = 10          # Optional, purge old logs
 max_binlog_size  = 100M        # Optional, limit log size
 ```
 
-2. clone this repo and get dependencies:
+2. clone this repo and get dependencies (tested with node 0.10):
 ```
 git clone https://github.com/francoisp/rosettable.git
 cd rosettable
-npm -i
+npm i
 ```
 5. run all test (testing assumes mysql>=5.7 and postgres>=11 running on localhost for simplicity, look at mypgstriggers.js for the connection strings) This creates a database and mapping and some tests triggers and runs some tests. 
 ``` 
