@@ -45,7 +45,7 @@ INSERT INTO employee(emp_id,emp_name,emp_dept_id) VALUES (DEFAULT, 'MYSQLINSERT-
 --follow instructions to make and install the updated myslq_fdw -- for now --. Hopefully the PR will merge upstream soon
 ```
 
-1. Enable MySQL binlog in my.cnf (un ubuntu:/etc/mysql/my.cnf YMMV), restart MySQL server after making these changes.
+1. Enable MySQL binlog in my.cnf (ubuntu:/etc/mysql/my.cnf YMMV), restart MySQL server after making these changes.
 ```
 # Must be unique integer from 1-2^32
 server-id        = 1
