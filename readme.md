@@ -47,6 +47,8 @@ INSERT INTO employee(emp_id,emp_name,emp_dept_id) VALUES (DEFAULT, 'MYSQLINSERT-
 
 1. Enable MySQL binlog in my.cnf (ubuntu:/etc/mysql/my.cnf YMMV), restart MySQL server after making these changes.
 ```
+# add the mysqld block is you dont have it, otherwise you can add the rest of the config under your existing block
+[mysqld] 
 # Must be unique integer from 1-2^32
 server-id        = 1
 # Row format required for ZongJi, the very nice binlog parser used
