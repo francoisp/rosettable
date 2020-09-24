@@ -38,9 +38,9 @@ needs to change to:
 INSERT INTO employee(emp_id,emp_name,emp_dept_id) VALUES (DEFAULT, 'MYSQLINSERT--',2);
 ```
 
-## minor annoyances
+## Minor annoyances
 
-The current mysql_fdw (2.5) has a few limitations, text fields over 64K will cause the FDW to go haywire, and camelCase tableNames might or might not work, depending on your mysql default settings ( by default they will not IIRC ). I might fix these in the aforementionned fork. 
+The current mysql_fdw (2.5) has a few limitations, text fields over 64K will cause the FDW to go haywire, and camelCase tableNames might or might not work, depending on your mysql default settings ( by default they will not IIRC ). I might fix these in the fork mentionned below. 
 
 ## How to test/use
 
