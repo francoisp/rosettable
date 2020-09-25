@@ -37,6 +37,11 @@ needs to change to:
 ```
 INSERT INTO employee(emp_id,emp_name,emp_dept_id) VALUES (DEFAULT, 'MYSQLINSERT--',2);
 ```
+
+## Minor annoyances
+
+The current mysql_fdw (2.5) has a few limitations, text fields over 64K will cause the FDW to go haywire, and camelCase tableNames might or might not work, depending on your mysql default settings ( by default they will not IIRC ). I might fix these in the fork mentionned below. 
+
 ## How to test/use
 
 0. This requires a small bugfix that has not made it yet to the MySQL FDW distribution. Please get it here: https://github.com/francoisp/mysql_fdw
@@ -62,9 +67,11 @@ expire_logs_days = 10          # Optional, purge old logs
 max_binlog_size  = 100M        # Optional, limit log size
 ```
 
-2. clone this repo and get dependencies:
+2. clone this repo and get dependencies (tested with node 0.10):
 ```
-npm -i
+git clone https://github.com/francoisp/rosettable.git
+cd rosettable
+npm i
 ```
 5. run all test (testing assumes mysql>=5.7 and postgres>=11 running on localhost for simplicity, look at mypgstriggers.js for the connection strings) This creates a database and mapping and some tests triggers and runs some tests. 
 ``` 
