@@ -35,11 +35,11 @@ done
 
 args="$*"
 # make sure our deamon is not running
-pkill -f 'node mypgtriggers'
+pkill -f 'node rosettable'
 while [ $? -eq 0 ]; do  
 	echo "deamon was running: wait for it to be dead"
 	sleep 1;
-	pkill -f 'node mypgtriggers'
+	pkill -f 'node rosettable'
 done
 sleep 1;
 
@@ -62,7 +62,7 @@ PGPASSWORD=$postgrespass psql -h localhost -p $postgresport -U $postgresuser -f 
 
 
 #start our binlog watching node process
-node mypgtriggers.js > watcher1.log & triggerwatcherpid=$!
+node rosettable.js > watcher1.log & triggerwatcherpid=$!
 echo "STARTED OUR WATCHING DEAMON: triggerwatcherpid: $triggerwatcherpid"
 # lets wait 2 seconds for it to be ready
 sleep 2
@@ -109,7 +109,7 @@ PGPASSWORD=$postgrespass psql -h localhost -p $postgresport -U $postgresuser -f 
 
 
 #start our binlog watching node process
-node mypgtriggers.js > watcher2.log & triggerwatcherpid=$!
+node rosettable.js > watcher2.log & triggerwatcherpid=$!
 echo "STARTED OUR WATCHING DEAMON: triggerwatcherpid: $triggerwatcherpid"
 # lets wait 2 seconds for it to be ready
 sleep 2

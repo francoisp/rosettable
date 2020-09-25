@@ -1,8 +1,17 @@
+-- this should run as a pg super user
+-- create one with
+--su - postgres
+--psql 
+--CREATE ROLE rosettable LOGIN SUPERUSER PASSWORD '3passWorld';
+--CREATE DATABASE rosettable;
+--GRANT ALL ON DATABASE rosettable to rosettable;
+
 select version();
 DROP DATABASE testdb_pg;
 
 
 DROP USER IF EXISTS fdw_user;
+DROP USER IF EXISTS fdw_user2;
 -- this user is used both to own our mapping and by the deamon to list and run the triggers
 CREATE USER fdw_user WITH ENCRYPTED PASSWORD 'this_1s_fdw_us3r';
 CREATE USER fdw_user2 WITH ENCRYPTED PASSWORD 'this_1s_fdw_us3r';
@@ -11,12 +20,14 @@ CREATE DATABASE testdb_pg WITH ENCODING 'UTF8'
     LC_COLLATE = 'en_US.UTF-8'
     LC_CTYPE = 'en_US.UTF-8'
     TEMPLATE template0 OWNER fdw_user;
-GRANT ALL ON testdb_pg to fdw_user2;
+GRANT ALL ON DATABASE testdb_pg to fdw_user2;
 -- connect to our new DB
 \c testdb_pg;
 --SHOW SERVER_ENCODING;
 
-select 'ATTENTION this project requires a bugfix to the MYSQL_FDW that as of this writting has not been merged: you can get the fork here and compile:https://github.com/francoisp/mysql_fdw';--select mysql_fdw_version();
+select 'ATTENTION !!! IF THIS MESSAGE STOPS YOUR TERMINAL WINDOW, REQUIRING YOU TO PRESS Q TO ~END, THE DIFF USED TO VERIFY THAT ALL TEST HAVE PASSED WILL ALWAYS FAIL RESIZE YOUR WINDOW!!!';
+
+select 'ATTENTION this project requires a bugfix to the MYSQL_FDW that as of this writting has not been merged: you can get the fork here and compile:https://github.com/francoisp/mysql_fdw';
 CREATE EXTENSION mysql_fdw; --  this needs to run as superuser, at this point we are still the user that started this script which should have all rights
 select mysql_fdw_version(); -- we did not update the official version yet, but when it is we should check we are running the version with the required fix
 

@@ -20,7 +20,7 @@ const pgconfig = {
     user: 'fdw_user',
     password: 'this_1s_fdw_us3r',
     host: 'localhost',
-    port: '5433',
+    port: '5432',
     database: 'testdb_pg'
 };
 const pgpool = new pg.Pool(pgconfig);
@@ -271,7 +271,8 @@ function pgsql_storedProcsQuery(evt,event_manipulation,action_timing)
 			pgsql_storedProcs+=`information_schema.triggers.action_timing = '`+action_timing.toUpperCase()+`' AND`;	
 		pgsql_storedProcs+=`
 		information_schema.triggers.action_orientation = 'ROW' AND 
-		pg_proc.proname = split_part(regexp_replace(action_statement, 'EXECUTE PROCEDURE\\\s+', ''),'(',1) AND 
+		( pg_proc.proname = split_part(regexp_replace(action_statement, 'EXECUTE PROCEDURE\\\s+', ''),'(',1) OR 
+		  pg_proc.proname = split_part(regexp_replace(action_statement, 'EXECUTE FUNCTION\\\s+', ''),'(',1)) AND 
 		pg_proc.proname NOT LIKE '%_pgrti'
 			ORDER BY information_schema.triggers.action_timing,information_schema.triggers.action_order) as procs,
 		(select json_object_agg(foreign_table_schema, cols) as foreignschemas from (select foreign_table_schema, json_object_agg(information_schema.columns.column_name, information_schema.columns.data_type) as cols from  information_schema.foreign_table_options,information_schema.columns WHERE
@@ -492,11 +493,11 @@ zongji.on('binlog', function(evt) {
 
 				
 				var pgsql_storedProcs = pgsql_storedProcsQuery(evt,'UPDATE');
-				//console.log(pgsql_storedProcs);
+				//console.log("pgsql_storedProcs query:"+pgsql_storedProcs);
 				const res = await pgclient.query(pgsql_storedProcs);
 				//console.log(res.rows[0]);
 				if(res.rows.length > 0 && res.rows[0].procs != null){
-					// so we have at least one ON INSERT stored proc in pg for this table
+					// so we have at least one ON UPDATE stored proc in pg for this table
 					var procs = res.rows[0].procs;
 					//console.log(procs);
 					
