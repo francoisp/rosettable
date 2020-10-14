@@ -47,7 +47,7 @@ CREATE USER MAPPING FOR fdw_user SERVER mysql_server OPTIONS (username 'clientpg
 select 'create a schema where we''ll map the foreign tables';
 create schema fs_mqltestdb;
 
--- this cresates the mapping tables
+-- this creates the mapping tables
 IMPORT FOREIGN SCHEMA mqltestdb FROM SERVER mysql_server INTO fs_mqltestdb;
 select 'we could have the same mysql db mapped at different locations, we need to support this';
 create schema fs_mqltestdb2;

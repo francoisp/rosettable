@@ -24,7 +24,7 @@ This is where this hack comes in!!! 👍	😛
 
 Using mysql's binlog(thru a cool evt reader call zongji) and a few schema queries this node app will fire your postgres PLPgSQL triggers for you! (well not really, it repackages and executes your triggers' code post-commit) 
 
-But you ask, what if I modified the NEW row in the before trigger? Or set it to NULL to prevent the operation? Well that works too! The post-before value of NEW is compared with the pre-value and silent UPDATES are issued. There's a 20% chance of bugs, please report.
+But, you ask, what if I modified the NEW row in the before trigger? Or set it to NULL to prevent the operation? Well that works too! The post-before value of NEW is compared with the pre-value and silent UPDATES are issued. There's a 20% chance of bugs, please report. 
 
 ## Caveat
 

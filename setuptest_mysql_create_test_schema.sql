@@ -34,14 +34,14 @@ CREATE USER 'clientpg'@'localhost' IDENTIFIED BY 'fdwfordeworld';
 GRANT  ALL PRIVILEGES ON mqltestdb.* TO 'clientpg'@'localhost';
 FLUSH PRIVILEGES;
 
-select 'ATTENTION for binlog watching to work you need to enable MySQL binlog in my.cnf ans restart MySQL: see https://github.com/nevill/zongji' as '';
+select 'ATTENTION for binlog watching to work you need to enable MySQL binlog in my.cnf (generally: /etc/mysql/my.cnf) and restart MySQL: see https://github.com/nevill/zongji' as '';
 select 'Here is a sample:' as '';
 select '[mysqld]' as '';
 select '# Must be unique integer from 1-2^32' as '';
 select 'server-id = 1' as '';
 select '# Row format required for ZongJi' as '';
 select 'binlog_format    = row' as '';
-select '# Directory must exist. This path works for Linux. Other OS may require a different path' as '';
+select '# log directory must exist. This path works for Linux. Other OS may require a different path' as '';
 select 'log_bin          = /var/log/mysql/mysql-bin.log' as '';
 select 'expire_logs_days = 10          # Optional, purge old logs' as '';
 select 'max_binlog_size  = 100M        # Optional, limit log size' as '';

@@ -5,38 +5,51 @@ var mysql1      = require('mysql');
 var AsyncLock = require('async-lock');
 
 var lock = new AsyncLock();
-
+var fs = require('fs'),
 
 
 //we could watch more than one schema at once with zongji, or have sepearate deamons 
-const mysqldbwatched='mqltestdb';
-const zongji = new ZongJi({
+//mysqldbwatched='mqltestdb';
+
+zongji_conf = {
   host     : 'localhost',
   user     : 'pgtriggersd',
   password : 'pointandshoot',
-});
+};
 
-const pgconfig = {
+
+pgconfig = {
     user: 'fdw_user',
     password: 'this_1s_fdw_us3r',
     host: 'localhost',
     port: '5432',
     database: 'testdb_pg'
 };
-const pgpool = new pg.Pool(pgconfig);
 
-
-
-const mysqlconfig =  {
+mysqlconfig =  {
   multipleStatements: true,
   host     : 'localhost',
   user     : 'pgtriggerscl',
   password : 'pointandshoot2',
-  database: mysqldbwatched,
+  database: 'mqltestdb',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
 };
+
+
+configPath =  __dirname +'/notversioned.rosettable.conf';
+if(fs.existsSync(configPath))
+{
+	console.log("READING rosettable CONFIGURATION, NOT INTEGRATED TESTING")
+	var parsed = JSON.parse(fs.readFileSync(configPath, 'UTF-8'));
+	zongji_conf = parsed.zongji_conf;
+	pgconfig = parsed.pgconfig;
+	mysqlconfig = parsed.mysqlconfig;
+}
+
+const zongji = new ZongJi(zongji_conf);
+const pgpool = new pg.Pool(pgconfig);
 const mysqlpool = mysql1.createPool(mysqlconfig);
 
 
