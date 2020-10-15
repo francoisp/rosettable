@@ -1,5 +1,5 @@
 {
-  "name": "triggers_mysql_pg",
+  "name": "rosettable",
   "version": "1.0.0",
   "description": "watch mysql binlog to fire appropriate postgres triggers",
   "main": "index.js",

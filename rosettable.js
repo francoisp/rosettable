@@ -46,7 +46,9 @@ if(fs.existsSync(configPath))
 	zongji_conf = parsed.zongji_conf;
 	pgconfig = parsed.pgconfig;
 	mysqlconfig = parsed.mysqlconfig;
-}
+}else
+	console.log("WARNINGL DID NOT READ CONFIG FILE: INTEGRATED TESTING")
+
 
 const zongji = new ZongJi(zongji_conf);
 const pgpool = new pg.Pool(pgconfig);
@@ -101,6 +103,12 @@ function subtract(a, b) {
         	if(Object.prototype.toString.call(b[key]) === '[object Date]' && Object.prototype.toString.call(a[key]) === '[object Date]'){
         	        		if(b[key].getTime() != a[key].getTime())
         	        			r[key] = a[key]
+        	 // a Date object is instantiated with a before trigger, but the orig is still a String
+        	 }else if(Object.prototype.toString.call(b[key]) === '[object Date]'){
+        	 				//we instantiate a Date and compare
+        	        		if(b[key].getTime() != (new Date(a[key])).getTime())
+        	        			r[key] = a[key]
+        	 
         	 }else{
 	             if (!a[key]) a[key] = {};
 	             r[key] = subtract(a[key], b[key]);
@@ -290,9 +298,9 @@ function pgsql_storedProcsQuery(evt,event_manipulation,action_timing)
 			ORDER BY information_schema.triggers.action_timing,information_schema.triggers.action_order) as procs,
 		(select json_object_agg(foreign_table_schema, cols) as foreignschemas from (select foreign_table_schema, json_object_agg(information_schema.columns.column_name, information_schema.columns.data_type) as cols from  information_schema.foreign_table_options,information_schema.columns WHERE
 		information_schema.foreign_table_options.foreign_table_schema = information_schema.columns.table_schema AND 
-		information_schema.foreign_table_options.foreign_table_catalog = 'testdb_pg' AND 
+		information_schema.foreign_table_options.foreign_table_catalog = '`+pgconfig.database+`' AND 
 		information_schema.foreign_table_options.option_name = 'dbname' AND 
-		information_schema.foreign_table_options.option_value = 'mqltestdb' group by foreign_table_schema) as fschemas) as foreignschemas
+		information_schema.foreign_table_options.option_value = '`+mysqlconfig.database+`' group by foreign_table_schema) as fschemas) as foreignschemas
 			;
 				`;
 	//console.log(pgsql_storedProcs);			
@@ -366,6 +374,14 @@ function mysql_commavallist(jsobj)
 		var val = jsobj[key];
 		if(Object.prototype.toString.call(val) === '[object Date]')
 			val = val.toISOString();
+		if(Object.prototype.toString.call(val) === '[object String]' ){
+			if(val.endsWith('.000Z')){
+				// most likely a date, but still in String format, we'll format as a mysql timestamp
+				// we might need to get the mysql column type with SHOW columns from table... 
+				if(Date.parse(val) != NaN)
+					val = new Date(val).toJSON().slice(0, 19).replace('T', ' ');
+			}		
+		}
 		if(val != null && !Number.isInteger(val))
 			val = '\''+ val+'\'';
 		stmt += ' ' + val + ','; 
@@ -381,6 +397,15 @@ function mysql_andclause(jsobj)
 		var val = jsobj[key];
 		if(Object.prototype.toString.call(val) === '[object Date]')
 			val = val.toISOString();
+		if(Object.prototype.toString.call(val) === '[object String]' ){
+			if(val.endsWith('.000Z')){
+				// most likely a date, but still in String format, we'll format as a mysql timestamp
+				// we might need to get the mysql column type with SHOW columns from table... 
+				if(Date.parse(val) != NaN)
+					val = new Date(val).toJSON().slice(0, 19).replace('T', ' ');
+			}
+				
+		}
 		if(val != null && !Number.isInteger(val))
 			val = '\''+ val+'\'';
 		if(val == null)
@@ -866,7 +891,7 @@ zongji.on('binlog', function(evt) {
 									}else{
 
 										var change = subtract(postbeforetrigger_row, evt.rows[i]);
-										console.log('BEFORE TRIGGER evt row:'+i+ ' caused chage:'+JSON.stringify(change));
+										console.log('BEFORE TRIGGER evt row:'+i+ ' caused change:'+JSON.stringify(change));
 
 										// update silently mysql if NEW was modified by triggers
 										if(Object.keys(change).length > 0)
@@ -1028,14 +1053,18 @@ zongji.on('ready', function(evt) {
 	 
 });
 
-console.log("about to start trigers_mysql_pg");
+console.log("about to start rosettable on: "+ mysqlconfig.database);
+
+//'mqltestdb': true
+includedschema = {}
+includedschema[mysqlconfig.database] = true;
+
 zongji.start({
   //Unique number int32 >= 1  to identify this replication slave instance. Must be specified if running more than one instance of ZongJi. Must be used in start() method for effect. Default: 1
   serverId : 1,
   startAtEnd: true,
   includeEvents: ['tablemap', 'writerows', 'updaterows', 'deleterows'],
-  includeSchema: {'mqltestdb': true
-   }
+  includeSchema: includedschema
 });
 
 process.on('SIGINT', function() {
