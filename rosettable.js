@@ -299,6 +299,8 @@ function pgsql_storedProcsQuery(evt,event_manipulation,action_timing)
 		(select json_object_agg(foreign_table_schema, cols) as foreignschemas from (select foreign_table_schema, json_object_agg(information_schema.columns.column_name, information_schema.columns.data_type) as cols from  information_schema.foreign_table_options,information_schema.columns WHERE
 		information_schema.foreign_table_options.foreign_table_schema = information_schema.columns.table_schema AND 
 		information_schema.foreign_table_options.foreign_table_catalog = '`+pgconfig.database+`' AND 
+		information_schema.foreign_table_options.foreign_table_name = '`+evt.tableMap[evt.tableId].tableName+`' AND
+		information_schema.columns.table_name = '`+evt.tableMap[evt.tableId].tableName+`' AND 
 		information_schema.foreign_table_options.option_name = 'dbname' AND 
 		information_schema.foreign_table_options.option_value = '`+mysqlconfig.database+`' group by foreign_table_schema) as fschemas) as foreignschemas
 			;
