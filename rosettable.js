@@ -126,9 +126,82 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+
+async function addpgrti_pg(foreignschemas,tableName,pgclient)
+{
+	for (var i = 0; i < foreignschemas.length; i++) {
+	foreignschemas[i]
+	 await pgclient.query(`
+		alter FOREIGN table `+foreignschemas[i]+`.`+tableName+` add IF NOT EXISTS pgrti bigint DEFAULT NULL;
+
+		CREATE OR REPLACE FUNCTION aaatrig_upins_pgrti() returns trigger
+AS $$
+DECLARE
+BEGIN
+	-- this check is in case this trggier gets called before the pgrti col is added. May happen on database restore for example
+	IF NOT(row_to_json(NEW)->'pgrti' is NULL) THEN
+		-- there is as a non zero chance the update trigger can be fired twice...
+		-- there is also a strange bug that on BEFORE INSERT the NEW.pgrti gets 0 instead of a random!
+		NEW.pgrti = (9223372036854773427*random());
+	END IF;
+  --RAISE LOG 'aaatrig_upins_pgrti';
+  --RAISE NOTICE 'aaatrig_upins_pgrti %', row_to_json(NEW)::text;
+  return NEW;
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION aaatrig_del_pgrti() returns trigger
+AS $$
+DECLARE
+trigrow json; 
+whereClause text DEFAULT 'WHERE ';
+key text;
+value text;
+excstr text; 
+BEGIN
+	trigrow = row_to_json(OLD);
+	--RAISE NOTICE 'trigrow:%',trigrow;
+	-- build a where clause to match exactly our row
+	FOR key, value in select * from json_each_text(trigrow) LOOP
+		IF value is NULL THEN
+			whereClause = whereClause || key || ' is null AND '; 
+		ELSE
+			whereClause = whereClause || key || ' = ''' || value || ''' AND '; 
+		END IF;
+	END LOOP;
+	whereClause = regexp_replace(whereClause, 'AND\\s*$', '');
+	--RAISE NOTICE 'whereClause:%',whereClause;
+	-- this check is in case this trigger gets called before the pgrti col is added. May happen on database restore for example
+	IF NOT(trigrow->'pgrti' is NULL) THEN
+		--we wrap the next statement with session_replication_role to prevent firing the update triggers in pg
+		--SET session_replication_role = replica;
+		ALTER TABLE `+foreignschemas[i]+`.`+tableName+` DISABLE TRIGGER aaatrigup_pgrti;
+		RAISE NOTICE 'silently setting pgrti to -42424242 to mark this delete as coming from pg';
+		 -- this is sentinel value, by changing the value we'll ignore the update in our mysql binlog watch deamon, the sentinel value tags this as a pg delete.
+		EXECUTE('UPDATE '||TG_TABLE_SCHEMA||'.'||TG_TABLE_NAME||' set pgrti = -42424242 ' || whereClause || ';');
+		--SET session_replication_role = DEFAULT;
+		ALTER TABLE `+foreignschemas[i]+`.`+tableName+` ENABLE TRIGGER aaatrigup_pgrti;
+	END IF;
+	--RAISE LOG 'aaatrig_del_pgrti';
+	--RAISE NOTICE 'aaatrig_del_pgrti %', row_to_json(OLD)::text;
+  return OLD;
+
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS aaatrigup_pgrti ON `+foreignschemas[i]+`.`+tableName+`;
+DROP TRIGGER IF EXISTS aaatrigins_pgrti ON `+foreignschemas[i]+`.`+tableName+`;
+DROP TRIGGER IF EXISTS aaatrigdel_pgrti ON `+foreignschemas[i]+`.`+tableName+`;
+CREATE TRIGGER aaatrigup_pgrti BEFORE UPDATE ON `+foreignschemas[i]+`.`+tableName+` FOR EACH ROW EXECUTE PROCEDURE aaatrig_upins_pgrti();
+CREATE TRIGGER aaatrigins_pgrti BEFORE INSERT ON `+foreignschemas[i]+`.`+tableName+` FOR EACH ROW EXECUTE PROCEDURE aaatrig_upins_pgrti();
+CREATE TRIGGER aaatrigdel_pgrti BEFORE DELETE ON `+foreignschemas[i]+`.`+tableName+` FOR EACH ROW EXECUTE PROCEDURE aaatrig_del_pgrti();
+		`);
+	}
+}
+
 // acting as a very simple mutex, node is single threaded ans we should have a single instance of this deamon running
 var addingpgrtimutex = false;
-async function addpgrti(evtrow,foreignschemas,tableName,pgclient)
+async function addpgrti(evtrow,foreignschemas,tableName,pgclient, pg_only = false)
 {
 	// lets first try to catch any ongoing udpate operations -- this is transient and not garranteed, if we dont catch an update issued from pg we'll get the triggers fired twice (this could occur only on first event); 
 	// maybe this could run inside the mysql_fdw, that way w'd be garanteed to be in transaction? but where would we put the results?
@@ -154,125 +227,35 @@ async function addpgrti(evtrow,foreignschemas,tableName,pgclient)
 		{
 
 			addingpgrtimutex = true;
-			console.log("ALTERING SCHEMAS TO ADD A PGRTI COL AND TRIGGERS")
-			//;(async function() {
-				
+			
 
-				// this is the first time we see an update on this table, we'll add our special field to this table in mysql
-				//mysqlpool.query(`ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL;`);
-
-
-				// mysqlpool.getConnection(function(err, connection) {
-				//   if (err) throw err; // not connected!
-
-				//   // Use the connection
-				//   connection.query(`ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL;`, function (error, results, fields) {
-				//     // When done with the connection, destroy it.
-				//     connection.destroy();
-
-				//     // Handle error after the release.
-				//     if (error) throw error;
-
-				//     // Don't use the connection here, it has been returned to the pool.
-				//   });
-				// });
-
-				// instead of restarting our pool we make sure our connection is not reused 
-				// const connection = mysql.createConnection(mysqlconfig);
-				// await connection.execute(`ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL;`);
-				// connection.end();
-
+			if(pg_only == false){
+				console.log("ALTERING SCHEMAS TO ADD A PGRTI COL AND TRIGGERS TO BOTH SIDES")
+				// this is the first time we see an update on this table, we'll add our special field to this table in mysql	
 				// use other mysql client, mysql2 client has a problem with the schema mod?
 				var connection = mysql1.createConnection(mysqlconfig);
 				connection.connect();
 				connection.query(`ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL;LOCK TABLES `+tableName+`  WRITE;`, async function (error, results, fields) {
-				  // if (error) throw error;
-				  // console.log('The solution is: ', results[0].solution);
+				  if (error) throw error;
+				  
+				   	addpgrti_pg(foreignschemas,tableName,pgclient)
+
+				});
+
+				connection.end();
+			}else{
+				console.log("ALTERING POSTGRES SCHEMAS TO ADD A PGRTI COL AND TRIGGERS --foreign schema was dropped?")
+				addpgrti_pg(foreignschemas,tableName,pgclient)
+			}
 				
-				
-				
-				
-				// and in postgres foreach mapped schema
-				console.log('foreignschemas:'+JSON.stringify(foreignschemas));
-				for (var i = 0; i < foreignschemas.length; i++) {
-					foreignschemas[i]
-					 await pgclient.query(`
-						alter FOREIGN table `+foreignschemas[i]+`.`+tableName+` add pgrti bigint DEFAULT NULL;
-
-						CREATE OR REPLACE FUNCTION aaatrig_upins_pgrti() returns trigger
-			AS $$
-			DECLARE
-			BEGIN
-				-- this check is in case this trggier gets called before the pgrti col is added. May happen on database restore for example
-				IF NOT(row_to_json(NEW)->'pgrti' is NULL) THEN
-					-- there is as a non zero chance the update trigger can be fired twice...
-					-- there is also a strange bug that on BEFORE INSERT the NEW.pgrti gets 0 instead of a random!
-					NEW.pgrti = (9223372036854773427*random());
-				END IF;
-			  --RAISE LOG 'aaatrig_upins_pgrti';
-			  --RAISE NOTICE 'aaatrig_upins_pgrti %', row_to_json(NEW)::text;
-			  return NEW;
-
-			END;
-			$$ LANGUAGE plpgsql;
-
-			CREATE OR REPLACE FUNCTION aaatrig_del_pgrti() returns trigger
-			AS $$
-			DECLARE
-			trigrow json; 
-			whereClause text DEFAULT 'WHERE ';
-			key text;
-			value text;
-			excstr text; 
-			BEGIN
-				trigrow = row_to_json(OLD);
-				--RAISE NOTICE 'trigrow:%',trigrow;
-				-- build a where clause to match exactly our row
-				FOR key, value in select * from json_each_text(trigrow) LOOP
-					IF value is NULL THEN
-						whereClause = whereClause || key || ' is null AND '; 
-					ELSE
-						whereClause = whereClause || key || ' = ''' || value || ''' AND '; 
-					END IF;
-				END LOOP;
-				whereClause = regexp_replace(whereClause, 'AND\\s*$', '');
-				--RAISE NOTICE 'whereClause:%',whereClause;
-				-- this check is in case this trigger gets called before the pgrti col is added. May happen on database restore for example
-				IF NOT(trigrow->'pgrti' is NULL) THEN
-					--we wrap the next statement with session_replication_role to prevent firing the update triggers in pg
-					--SET session_replication_role = replica;
-					ALTER TABLE `+foreignschemas[i]+`.`+tableName+` DISABLE TRIGGER aaatrigup_pgrti;
-					RAISE NOTICE 'silently setting pgrti to -42424242 to mark this delete as coming from pg';
-					 -- this is sentinel value, by changing the value we'll ignore the update in our mysql binlog watch deamon, the sentinel value tags this as a pg delete.
-					EXECUTE('UPDATE '||TG_TABLE_SCHEMA||'.'||TG_TABLE_NAME||' set pgrti = -42424242 ' || whereClause || ';');
-					--SET session_replication_role = DEFAULT;
-					ALTER TABLE `+foreignschemas[i]+`.`+tableName+` ENABLE TRIGGER aaatrigup_pgrti;
-				END IF;
-				--RAISE LOG 'aaatrig_del_pgrti';
-				--RAISE NOTICE 'aaatrig_del_pgrti %', row_to_json(OLD)::text;
-			  return OLD;
-
-			END;
-			$$ LANGUAGE plpgsql;
-			DROP TRIGGER IF EXISTS aaatrigup_pgrti ON `+foreignschemas[i]+`.`+tableName+`;
-			DROP TRIGGER IF EXISTS aaatrigins_pgrti ON `+foreignschemas[i]+`.`+tableName+`;
-			DROP TRIGGER IF EXISTS aaatrigdel_pgrti ON `+foreignschemas[i]+`.`+tableName+`;
-			CREATE TRIGGER aaatrigup_pgrti BEFORE UPDATE ON `+foreignschemas[i]+`.`+tableName+` FOR EACH ROW EXECUTE PROCEDURE aaatrig_upins_pgrti();
-			CREATE TRIGGER aaatrigins_pgrti BEFORE INSERT ON `+foreignschemas[i]+`.`+tableName+` FOR EACH ROW EXECUTE PROCEDURE aaatrig_upins_pgrti();
-			CREATE TRIGGER aaatrigdel_pgrti BEFORE DELETE ON `+foreignschemas[i]+`.`+tableName+` FOR EACH ROW EXECUTE PROCEDURE aaatrig_del_pgrti();
-					`);
-				}
-			//})()
-
-			});
-
-			connection.end();
 			// this is very weird and a hack, if we dont slow down a bit, the actual event that triggerd adding pgrti will not see the new col
 			await sleep(100);
 			console.log("DONE ALTERING SCHEMAS")
 		}
 	});
 }
+
+
 
 function pgsql_storedProcsQuery(evt,event_manipulation,action_timing)
 {	
@@ -308,6 +291,69 @@ function pgsql_storedProcsQuery(evt,event_manipulation,action_timing)
 	//console.log(pgsql_storedProcs);			
 	return pgsql_storedProcs;
 }
+
+
+function pgsql_storedALLProcsQuery(evt,event_manipulation,action_timing)
+{	
+	//regexp_replace(regexp_replace(prosrc, '([\\\s|;])--[^\\\n]*', '\\1', 'g'), '([\\\s|;])RETURN(\\\s)+[^;]+;', '\\1', 'ig')
+	var pgsql_storedProcs = `select json_object_agg(proname,procs) as storedprocs, json_agg(foreignschemas) as foreignschemas from (
+		select regexp_replace(prosrc, '([\\\s|;])--[^\\\n]*', '\\1', 'g') as prosrc,proname,foreign_table_schema as foreignschema, information_schema.triggers.trigger_name as trigger_name,information_schema.triggers.action_timing as action_timing, information_schema.triggers.action_statement as action_statement from 
+		(
+			select distinct foreign_table_schema from  information_schema.foreign_table_options WHERE 
+				information_schema.foreign_table_options.foreign_table_catalog = '`+pgconfig.database+`' AND 
+				information_schema.foreign_table_options.option_name = 'dbname' AND 
+				information_schema.foreign_table_options.option_value = '`+evt.tableMap[evt.tableId].parentSchema+`') as foreign_table_schema,
+			information_schema.triggers,pg_proc WHERE 
+		information_schema.triggers.event_object_schema = foreign_table_schema AND 								 								
+		information_schema.triggers.event_object_table = '`+evt.tableMap[evt.tableId].tableName+`' AND 
+		information_schema.triggers.event_manipulation = '`+event_manipulation.toUpperCase()+`' AND`;
+		if( !(action_timing === undefined))
+			pgsql_storedProcs+=`information_schema.triggers.action_timing = '`+action_timing.toUpperCase()+`' AND`;	
+		pgsql_storedProcs+=`
+		information_schema.triggers.action_orientation = 'ROW' AND 
+		( pg_proc.proname = split_part(regexp_replace(action_statement, 'EXECUTE PROCEDURE\\\s+', ''),'(',1) OR 
+		  pg_proc.proname = split_part(regexp_replace(action_statement, 'EXECUTE FUNCTION\\\s+', ''),'(',1)) 
+			ORDER BY information_schema.triggers.action_timing,information_schema.triggers.action_order) as procs,
+		(select json_object_agg(foreign_table_schema, cols) as foreignschemas from (select foreign_table_schema, json_object_agg(information_schema.columns.column_name, information_schema.columns.data_type) as cols from  information_schema.foreign_table_options,information_schema.columns WHERE
+		information_schema.foreign_table_options.foreign_table_schema = information_schema.columns.table_schema AND 
+		information_schema.foreign_table_options.foreign_table_catalog = '`+pgconfig.database+`' AND 
+		information_schema.foreign_table_options.foreign_table_name = '`+evt.tableMap[evt.tableId].tableName+`' AND
+		information_schema.columns.table_name = '`+evt.tableMap[evt.tableId].tableName+`' AND 
+		information_schema.foreign_table_options.option_name = 'dbname' AND 
+		information_schema.foreign_table_options.option_value = '`+mysqlconfig.database+`' group by foreign_table_schema) as fschemas) as foreignschemas
+			;
+				`;
+
+		
+	//console.log(pgsql_storedProcs);			
+	return pgsql_storedProcs;
+}
+
+async function pgsql_storedProcsAsync(pgclient, evt,event_manipulation,action_timing)
+{
+	var result = {pgrti:false};
+	var pgsql_storedProcs = pgsql_storedALLProcsQuery(evt,event_manipulation,action_timing);
+	const res = await pgclient.query(pgsql_storedProcs);
+	if(res.rows.length > 0 && res.rows[0].storedprocs != undefined)
+	{
+		var row = res.rows[0];
+		//console.log(JSON.stringify(res.rows[0]));
+		for (const [key, value] of Object.entries(row.storedprocs))
+		{
+			if(key.endsWith('_pgrti'))
+				result.pgrti = true;
+			else
+			{
+				if(result.procs == undefined)
+					result.procs = [];
+				result.procs.push(value);
+			}
+		}
+		result.foreignschemas = row.foreignschemas;
+	}
+	return result;
+}
+//
 
 // function pgsql_fakeROW(row, name)
 // {
@@ -532,17 +578,18 @@ zongji.on('binlog', function(evt) {
 				const pgclient = await pgpool.connect()
 
 				
-				var pgsql_storedProcs = pgsql_storedProcsQuery(evt,'UPDATE');
+				//var pgsql_storedProcs = pgsql_storedProcsQuery(evt,'UPDATE');
 				//console.log("pgsql_storedProcs query:"+pgsql_storedProcs);
-				const res = await pgclient.query(pgsql_storedProcs);
+				//const res = await pgclient.query(pgsql_storedProcs);
+				const res = await pgsql_storedProcsAsync(pgclient,evt,'UPDATE');
 				//console.log(res.rows[0]);
-				if(res.rows.length > 0 && res.rows[0].procs != null){
+				if(res.procs){
 					// so we have at least one ON UPDATE stored proc in pg for this table
-					var procs = res.rows[0].procs;
+					var procs = res.procs;
 					//console.log(procs);
 					
 					// these are the corresponding pg foreignschemas
-					var foreignschemas = res.rows[0].foreignschemas[0];
+					var foreignschemas = res.foreignschemas[0];
 					// for (var i = foreignschemas.length - 1; i >= 0; i--) {
 					// 	foreignschemas[procs[i].foreignschema] = procs[i].foreignschema; 
 					// }
@@ -556,6 +603,9 @@ zongji.on('binlog', function(evt) {
 						await addpgrti(evt.rows[0].before,foreignschemasarr,evt.tableMap[evt.tableId].tableName,pgclient);
 					}else{
 
+						// check if the pgrti triggers are still there, if the foreign schema was dropped we need to recreate
+						if(res.pgrti == false)
+							await addpgrti(evt.rows[0].before,foreignschemasarr,evt.tableMap[evt.tableId].tableName,pgclient,true);
 						//console.log('local_generatedupdates:'+ JSON.stringify(local_generatedupdates));
 						// if this evt occured before we had a pgrti col, or does not know about pgrti (mysql client) or did not change the pgrti (mysql) execute trigger procs's code
 						if( //( !("pgrti" in evt.rows[0].before) || 
@@ -563,7 +613,7 @@ zongji.on('binlog', function(evt) {
 							
 							// negative list here for clarity
 							!(
-								// define events to be ignored: myysql originating events implies before == after for pgrti, if it's not the case we ignore
+								// define events to be ignored: mysql originating events implies before == after for pgrti, if it's not the case we ignore
 								evt.rows[0].before.pgrti != evt.rows[0].after.pgrti
 								//)
 								||  
@@ -576,7 +626,7 @@ zongji.on('binlog', function(evt) {
 						{
 							
 							//detected a change comming from mysql fire postgres triggers 
-							console.log("FIRE POSTGRES UPDATE TRIGGERS:" + evt.getTypeName() + ' ON ' + evt.tableMap[evt.tableId].tableName );
+							console.log("---FIRE POSTGRES UPDATE TRIGGERS:" + evt.getTypeName() + ' ON ' + evt.tableMap[evt.tableId].tableName );
 							//console.log("BEFORE:" + JSON.stringify(evt.rows[0].before) );
 							//console.log("AFTER:" + JSON.stringify(evt.rows[0].after) );
 							
@@ -638,7 +688,7 @@ zongji.on('binlog', function(evt) {
 									}
 									//console.log('-------FAKEOLD:'+ fakeOLD);
 									//console.log('-------fakeNEW:'+ fakeNEW);
-									beforeproc.customprosrc += `select pg_temp.`+beforeproc.procname+`(old,new) from (`+fakeOLD+`) as old,(`+fakeNEW+`) as new;`;
+									//beforeproc.customprosrc += `select pg_temp.`+beforeproc.procname+`(old,new) from (`+fakeOLD+`) as old,(`+fakeNEW+`) as new;`;
 								}
 								//console.log('beforeproc.customprosrc:'+beforeproc.customprosrc);
 								beforetrigger_res =await pgclient.query(beforeproc.customprosrc);
@@ -780,6 +830,8 @@ zongji.on('binlog', function(evt) {
 										var fakeNEW = pgsql_fakeREC(evt.rows[i].after,foreignschemas[foreignschemasarr[0]]);
 										var fakeOLD = pgsql_fakeREC(evt.rows[i].before,foreignschemas[foreignschemasarr[0]]);
 										afterproc.customprosrc += `select pg_temp.`+afterproc.procname+`(old,new) from (`+fakeOLD+`) as old,(`+fakeNEW+`) as new;`;
+										//console.log('afterproc.customprosrc:::: '+afterproc.customprosrc );
+										//console.log('foreignschemas[foreignschemasarr[0]]:::: '+JSON.stringify(foreignschemas[foreignschemasarr[0]]) );
 									}
 								}
 								//console.log(afterproc.customprosrc);
@@ -827,17 +879,18 @@ zongji.on('binlog', function(evt) {
 	  		;(async function() {
 				const pgclient = await pgpool.connect()
 				
-				var pgsql_storedProcs = pgsql_storedProcsQuery(evt,'INSERT');
+				//var pgsql_storedProcs = pgsql_storedProcsQuery(evt,'INSERT');
 				//console.log('pgsql_storedProcs:'+pgsql_storedProcs);
-				const res = await pgclient.query(pgsql_storedProcs);
+				//const res = await pgclient.query(pgsql_storedProcs);
+				const res = await pgsql_storedProcsAsync(pgclient,evt,'INSERT');
 				//console.log('pgsql_storedProcs:'+JSON.stringify(res));
-				if(res.rows.length > 0 && res.rows[0].procs != null){
+				if(res.procs){
 
 					
-					var procs = res.rows[0].procs;
+					var procs = res.procs;
 					
 					// these are the corresponding pg foreignschemas
-					var foreignschemas = res.rows[0].foreignschemas[0];
+					var foreignschemas = res.foreignschemas[0];
 					// for (var i = foreignschemas.length - 1; i >= 0; i--) {
 					// 	foreignschemas[procs[i].foreignschema] = procs[i].foreignschema; 
 					// }
@@ -849,6 +902,9 @@ zongji.on('binlog', function(evt) {
 					}else{	
 						//console.log(procs);
 
+						// check if the pgrti triggers are still there, if the foreign schema was dropped we need to recreate
+						if(res.pgrti == false)
+							await addpgrti(evt.rows[0].before,foreignschemasarr,evt.tableMap[evt.tableId].tableName,pgclient,true);
 
 						if(!("pgrti" in evt.rows[0]) || evt.rows[0].pgrti == null )
 						{
@@ -958,15 +1014,17 @@ zongji.on('binlog', function(evt) {
 	  		;(async function() {
 				const pgclient = await pgpool.connect()
 
-				var pgsql_storedProcs = pgsql_storedProcsQuery(evt,'DELETE');
+				//var pgsql_storedProcs = pgsql_storedProcsQuery(evt,'DELETE');
 				//console.log(pgsql_storedProcs);
-				const res = await pgclient.query(pgsql_storedProcs);
-				if(res.rows.length > 0 && res.rows[0].procs != null){
-					var procs = res.rows[0].procs;
+				//const res = await pgclient.query(pgsql_storedProcs);
+				const res = await pgsql_storedProcsAsync(pgclient, evt,'DELETE');
+
+				if(res.procs){
+					var procs = res.procs;
 					//console.log(procs);
 					
 					// these are the corresponding pg foreignschemas
-					var foreignschemas = res.rows[0].foreignschemas[0];
+					var foreignschemas = res.foreignschemas[0];
 					// for (var i = foreignschemas.length - 1; i >= 0; i--) {
 					// 	foreignschemas[procs[i].foreignschema] = procs[i].foreignschema; 
 					// }
@@ -976,6 +1034,10 @@ zongji.on('binlog', function(evt) {
 					{
 						await addpgrti(evt.rows[0],foreignschemasarr,evt.tableMap[evt.tableId].tableName,pgclient);
 					}else{
+
+						// check if the pgrti triggers are still there, if the foreign schema was dropped we need to recreate
+						if(res.pgrti == false)
+							await addpgrti(evt.rows[0].before,foreignschemasarr,evt.tableMap[evt.tableId].tableName,pgclient,true);
 
 						//-42424242 is sentinel value that we set in a postgres before trigger (this one is ignored by the current system) to identify deletes coming from postgres
 						//42 is the sentinel when the pgrti has just been created in addpgrti
