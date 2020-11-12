@@ -1,24 +1,32 @@
 
 -- this is the user our binlog watching deamon connects to mysql with; 
 -- we are granting this role replication rights to all tables
-DROP USER IF EXISTS 'pgtriggersd'@'localhost';
-CREATE USER 'pgtriggersd'@'localhost' IDENTIFIED BY 'pointandshoot';
-GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO 'pgtriggersd'@'localhost';
+DROP USER IF EXISTS 'rosettableD'@'localhost';
+CREATE USER 'rosettableD'@'localhost' IDENTIFIED BY 'pointandshoot';
+GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO 'rosettableD'@'localhost';
 FLUSH PRIVILEGES;
 
-
+-- this is the user that the process uses when it needs to alter the mysql schema to add a col and a trigger
+-- we are granting this role replication rights to all tables
+DROP USER IF EXISTS 'rosettableAdm'@'localhost';
+CREATE USER 'rosettableAdm'@'localhost' IDENTIFIED BY 'admpasswatchout';
+-- GRANT SELECT, UPDATE, INSERT, DELETE, ALTER ON *.* TO 'rosettableAdm'@'localhost';
+GRANT SELECT,TRIGGER,SUPER, CREATE, UPDATE, INSERT, DELETE,LOCK TABLES, ALTER ON *.* TO 'rosettableAdm'@'localhost';
+FLUSH PRIVILEGES;
 
 -- create a test database 
 DROP DATABASE IF EXISTS mqltestdb;
 CREATE DATABASE mqltestdb;
 USE mqltestdb;
 
--- this role is used by our deamon to alter the schema to add a col on first use, and to revert changes when before triggers in pg would mandate 
-DROP USER IF EXISTS 'pgtriggerscl'@'localhost';
-CREATE USER 'pgtriggerscl'@'localhost' IDENTIFIED BY 'pointandshoot2';
--- GRANT SELECT, UPDATE, INSERT, DELETE, ALTER ON *.* TO 'pgtriggerscl'@'localhost';
-GRANT SELECT, CREATE, UPDATE, INSERT, DELETE,LOCK TABLES, ALTER ON mqltestdb.* TO 'pgtriggerscl'@'localhost';
+-- this is our regular user that does the CRUD
+DROP USER IF EXISTS 'rosettableU'@'localhost';
+CREATE USER 'rosettableU'@'localhost' IDENTIFIED BY 'pointandshoot2';
+-- GRANT SELECT, UPDATE, INSERT, DELETE, ALTER ON *.* TO 'rosettableU'@'localhost';
+GRANT SELECT, UPDATE, INSERT, DELETE ON mqltestdb.* TO 'rosettableU'@'localhost';
 FLUSH PRIVILEGES;
+-- this role is used by our deamon to alter the schema to add a col on first use, and to revert changes when before triggers in pg would mandate 
+
 
 -- our tables
 create table employee(emp_id int NOT NULL AUTO_INCREMENT PRIMARY KEY, emp_name text, emp_dept_id int, trigg_count int);

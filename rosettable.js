@@ -13,7 +13,7 @@ var fs = require('fs'),
 
 zongji_conf = {
   host     : 'localhost',
-  user     : 'pgtriggersd',
+  user     : 'rosettableD',
   password : 'pointandshoot',
 };
 
@@ -26,10 +26,22 @@ pgconfig = {
     database: 'testdb_pg'
 };
 
+
+mysqlELEVATEDconfig =  {
+  multipleStatements: true,
+  host     : 'localhost',
+  user     : 'rosettableAdm',
+  password : 'admpasswatchout',
+  database: 'mqltestdb',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+};
+
 mysqlconfig =  {
   multipleStatements: true,
   host     : 'localhost',
-  user     : 'pgtriggerscl',
+  user     : 'rosettableU',
   password : 'pointandshoot2',
   database: 'mqltestdb',
   waitForConnections: true,
@@ -138,14 +150,15 @@ async function addpgrti_pg(foreignschemas,tableName,pgclient)
 AS $$
 DECLARE
 BEGIN
-	-- this check is in case this trggier gets called before the pgrti col is added. May happen on database restore for example
+	-- this check is in case this trigger gets called before the pgrti col is added. May happen on database restore for example
 	IF NOT(row_to_json(NEW)->'pgrti' is NULL) THEN
 		-- there is as a non zero chance the update trigger can be fired twice...
 		-- there is also a strange bug that on BEFORE INSERT the NEW.pgrti gets 0 instead of a random!
 		NEW.pgrti = (9223372036854773427*random());
+		
 	END IF;
   --RAISE LOG 'aaatrig_upins_pgrti';
-  RAISE NOTICE 'aaatrig_upins_pgrti %', row_to_json(NEW)::text;
+  --RAISE NOTICE 'aaatrig_upins_pgrti %', row_to_json(NEW)::text;
   return NEW;
 
 END;
@@ -158,32 +171,14 @@ trigrow json;
 whereClause text DEFAULT 'WHERE ';
 key text;
 value text;
-excstr text; 
+msg jsonb; 
 BEGIN
 	trigrow = row_to_json(OLD);
 	--RAISE NOTICE 'trigrow:%',trigrow;
-	-- build a where clause to match exactly our row
-	FOR key, value in select * from json_each_text(trigrow) LOOP
-		IF value is NULL THEN
-			whereClause = whereClause || key || ' is null AND '; 
-		ELSE
-			whereClause = whereClause || key || ' = ''' || value || ''' AND '; 
-		END IF;
-	END LOOP;
-	whereClause = regexp_replace(whereClause, 'AND\\s*$', '');
-	--RAISE NOTICE 'whereClause:%',whereClause;
 	-- this check is in case this trigger gets called before the pgrti col is added. May happen on database restore for example
 	IF NOT(trigrow->'pgrti' is NULL) THEN
-		--we wrap the next statement with session_replication_role to prevent firing the update triggers in pg
-		--SET session_replication_role = replica;
-		-- BUG disabling the trigger alters the table 
-		--ALTER TABLE `+foreignschemas[i]+`.`+tableName+` DISABLE TRIGGER aaatrigup_pgrti;
-		RAISE NOTICE 'silently setting pgrti to -42424242 to mark this delete as coming from pg';
-		 -- this is sentinel value, by changing the value we'll ignore the update in our mysql binlog watch deamon, the sentinel value tags this as a pg delete.
-		-- THERE IS AN ISSUE HERE: ALL  TRIGGERS ON THIS TABLE WILL BE FIRED
-		EXECUTE('UPDATE '||TG_TABLE_SCHEMA||'.'||TG_TABLE_NAME||' set pgrti = -774277 ' || whereClause || ';');
-		--SET session_replication_role = DEFAULT;
-		--ALTER TABLE `+foreignschemas[i]+`.`+tableName+` ENABLE TRIGGER aaatrigup_pgrti;
+		msg = ('{"fdw_schema":"'||TG_TABLE_SCHEMA||'","tablename":"'||TG_TABLE_NAME||'","pgrti":"'||(OLD.pgrti)::text||'"}')::jsonb;
+		PERFORM pg_notify('pg_silent_del',msg::text);
 	END IF;
 	--RAISE LOG 'aaatrig_del_pgrti';
 	--RAISE NOTICE 'aaatrig_del_pgrti %', row_to_json(OLD)::text;
@@ -235,9 +230,12 @@ async function addpgrti(evtrow,foreignschemas,tableName,pgclient, pg_only = fals
 				console.log("ALTERING SCHEMAS TO ADD A PGRTI COL AND TRIGGERS TO BOTH SIDES")
 				// this is the first time we see an update on this table, we'll add our special field to this table in mysql	
 				// use other mysql client, mysql2 client has a problem with the schema mod?
-				var connection = mysql1.createConnection(mysqlconfig);
+				var connection = mysql1.createConnection(mysqlELEVATEDconfig);
 				connection.connect();
-				connection.query(`ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL;LOCK TABLES `+tableName+`  WRITE;`, async function (error, results, fields) {
+				//-- if we have null the insert came via mysqld. insert via pg will have positive val
+				//-- having a non null value allows us to distinguish never pg-altered deletes without using id col
+					   
+				connection.query(`ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL; SET GLOBAL log_bin_trust_function_creators = 1; DROP TRIGGER IF EXISTS aaabefore_`+tableName+`_insert;  CREATE TRIGGER aaabefore_`+tableName+`_insert BEFORE INSERT ON `+tableName+` FOR EACH ROW BEGIN IF NEW.pgrti is NULL THEN SET NEW.pgrti = -(9223372036854773427*RAND()); END IF; END ; LOCK TABLES `+tableName+`  WRITE;`, async function (error, results, fields) {
 				  if (error) throw error;
 				  
 				   	addpgrti_pg(foreignschemas,tableName,pgclient)
@@ -397,7 +395,7 @@ function mysql_commasetclause(jsobj)
 	for (var key in jsobj) {
 		var val = jsobj[key];
 		if(Object.prototype.toString.call(val) === '[object Date]')
-			val = val.toISOString();
+			val = val.toISOString().replace('T',' ');
 		if(val != null && !Number.isInteger(val))
 			val = '\''+ val+'\'';
 		stmt += ' ' + key + ' = '+ val + ','; 
@@ -452,8 +450,9 @@ function mysql_andclause(jsobj)
 				// most likely a date, but still in String format, we'll format as a mysql timestamp
 				// we might need to get the mysql column type with SHOW columns from table... 
 				if(Date.parse(val) != NaN)
-					val = new Date(val).toJSON().slice(0, 19).replace('T', ' ');
-			}
+					val = new Date(val).toJSON().slice(0, 19).replace('T',' ');
+			}if(val.match(/^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d$/,) != null)
+				val = val.replace('T',' ');
 				
 		}
 		if(val != null && !Number.isInteger(val))
@@ -561,7 +560,7 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 var local_generatedupdates= {};
 var pending_updates={};
 var pending_change_updates={};
-
+var pg_deletes= {};
 
 
 
@@ -621,8 +620,7 @@ zongji.on('binlog', function(evt) {
 								||  
 								// we specifically ignore some events, set to 42 when we want to ignore first op in addpgrti, -42424242 for pre del updates, and local_generatedupdates contains local edits or reverses as keys
 								typeof(local_generatedupdates[evt.rows[0].after.pgrti]) != 'undefined' || 
-								evt.rows[0].after.pgrti == -42424242 || 
-								evt.rows[0].before.pgrti == 42  
+								evt.rows[0].after.pgrti == -42424242 
 							)
 						)
 						{
@@ -877,6 +875,7 @@ zongji.on('binlog', function(evt) {
 			
 	  	}else if(evt.getTypeName() === 'WriteRows'){ // INSERT 
 	  		
+	  		//console.log(JSON.stringify(evt.rows[0]));
 	  		// anonymous asnyc fctn defined and called at once
 	  		;(async function() {
 				const pgclient = await pgpool.connect()
@@ -908,8 +907,10 @@ zongji.on('binlog', function(evt) {
 						if(res.pgrti == false)
 							await addpgrti(evt.rows[0].before,foreignschemasarr,evt.tableMap[evt.tableId].tableName,pgclient,true);
 
-						if(!("pgrti" in evt.rows[0]) || evt.rows[0].pgrti == null )
+						if(  !("pgrti" in evt.rows[0]) || evt.rows[0].pgrti < 0 )
 						{
+							// this event has come from the mysqld
+
 							// SMALL BUG: IF THE FIRST OPERATION came from postgres the trigger will be fired twice
 							console.log("FIRE POSTGRES INSERT TRIGGERS:" + evt.getTypeName() + ' ON ' + evt.tableMap[evt.tableId].tableName);
 							
@@ -1041,9 +1042,11 @@ zongji.on('binlog', function(evt) {
 						if(res.pgrti == false)
 							await addpgrti(evt.rows[0].before,foreignschemasarr,evt.tableMap[evt.tableId].tableName,pgclient,true);
 
+						//console.log(JSON.stringify(evt.rows[0]));
 						//-42424242 is sentinel value that we set in a postgres before trigger (this one is ignored by the current system) to identify deletes coming from postgres
-						//42 is the sentinel when the pgrti has just been created in addpgrti
-						if(!("pgrti" in evt.rows[0]) || (evt.rows[0].pgrti != -42424242 && evt.rows[0].pgrti != -774277 && evt.rows[0].pgrti != 42) )
+						var rowkey = evt.tableMap[evt.tableId].tableName+evt.rows[0].pgrti;
+						//console.log('check:'+rowkey);
+						if(!("pgrti" in evt.rows[0]) || (evt.rows[0].pgrti != -42424242 && (pg_deletes[rowkey] == undefined) ) )
 						{
 							console.log("FIRE POSTGRES DELETE TRIGGERS:" + evt.getTypeName() + ' ON ' + evt.tableMap[evt.tableId].tableName);
 							
@@ -1124,6 +1127,48 @@ console.log("about to start rosettable on: "+ mysqlconfig.database);
 //'mqltestdb': true
 includedschema = {}
 includedschema[mysqlconfig.database] = true;
+
+
+
+
+
+const delNotifyClient = new pg.Client(pgconfig);
+delNotifyClient.connect(err => {
+	if (err) {
+		console.error('connection error', err.stack)
+	}
+
+	console.log('connected to:' + pgconfig.database)
+
+	// Listen for all pg_notify channel messages
+	delNotifyClient.on('notification', function(msg) {
+		if(msg.channel == 'pg_silent_del')
+		{
+			console.log(JSON.stringify(msg));
+			if(msg.payload)
+			{	
+						let payload = JSON.parse(msg.payload);
+						//console.log('Flagging THIS delete as comming from pg.');
+			 
+						var rowkey = payload.tablename+payload.pgrti;
+						//console.log('rowkey'+rowkey);
+						pg_deletes[rowkey] = payload.pgrti;
+						setTimeout(function(){
+				  				delete pg_deletes[rowkey];
+						}, 1000);
+			}
+				
+			
+
+			
+		}
+		
+	});
+	
+	// Designate which channels we are listening on. Add additional channels with multiple lines.
+	delNotifyClient.query('LISTEN pg_silent_del');
+
+});
 
 zongji.start({
   //Unique number int32 >= 1  to identify this replication slave instance. Must be specified if running more than one instance of ZongJi. Must be used in start() method for effect. Default: 1
