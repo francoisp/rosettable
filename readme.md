@@ -47,10 +47,11 @@ The current mysql_fdw (2.5) has a few limitations, text fields over 64K will cau
 ~~0. This requires a small bugfix that has not made it yet to the MySQL FDW distribution. Please get it here: https://github.com/francoisp/mysql_fdw~~
 mysql_fdw has been updated! If you have version 2.5.5 you are good to go!
 
+~~
 ```
-~~ --follow instructions to make and install the updated myslq_fdw -- for now --. Hopefully the PR will merge upstream soon ~~
+ --follow instructions to make and install the updated myslq_fdw -- for now --. Hopefully the PR will merge upstream soon 
 ```
-
+~~
 1. Enable MySQL binlog in my.cnf (ubuntu:/etc/mysql/my.cnf YMMV), restart MySQL server after making these changes.
 ```
 # add the mysqld block is you dont have it, otherwise you can add the rest of the config under your existing block
@@ -74,17 +75,18 @@ git clone https://github.com/francoisp/rosettable.git
 cd rosettable
 npm i
 ```
-5. run all test (testing assumes mysql>=5.7 and postgres>=11 running on localhost for simplicity, look at rosettable.js for the connection strings) This creates a database and mapping and some tests triggers and runs some tests. 
+3. run all test (testing assumes mysql>=5.7 and postgres>=11 running on localhost for simplicity, look at rosettable.js for the connection strings) This creates a database and mapping and some tests triggers and runs some tests. 
 ``` 
 bash ./setupandtest.sh --mysqlrootpass $mysqlrootpass --postgresport $postgresport --postgresuser $PGUSERWITHSUPER --postgrespass  $PGUSERPASS
 ```
 
-To use in your project, you'll need to fiddle a bit: you need to add a user to your mysql db, give it replication rights, and put those credentials as well as creds to your posgres db in the main rosettable.js file, and run this as a seperate process, with (if you start to dig this you should use pm2):
+To use in your project, you'll need to fiddle a bit: you need to add a user to your mysql db, give it replication rights, and put those credentials as well as creds to your posgres db in a rosettable.conf file and run this as a seperate process, with (if you start to dig this you should use pm2):
 ```
 	node rosettable.js
 ```
 
- External configs and maybe a webservice might be coming next. Please let me know if this is useful, cheerio, stay safe.:	[🌈]( https://www.youtube.com/watch?v=zsk6z9O1WmE)
+
+A webservice might be coming next. Please let me know if this is useful, cheerio, stay safe.:	[🌈]( https://www.youtube.com/watch?v=zsk6z9O1WmE)
 
 PS: I'm releasing this under the GPL. If your commercial project could use this, let me know. We can do a support contract and/or a special license, or MIT. 
 
