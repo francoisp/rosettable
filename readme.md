@@ -73,14 +73,14 @@ git clone https://github.com/francoisp/rosettable.git
 cd rosettable
 npm i
 ```
-5. run all test (testing assumes mysql>=5.7 and postgres>=11 running on localhost for simplicity, look at mypgstriggers.js for the connection strings) This creates a database and mapping and some tests triggers and runs some tests. 
+5. run all test (testing assumes mysql>=5.7 and postgres>=11 running on localhost for simplicity, look at rosettable.js for the connection strings) This creates a database and mapping and some tests triggers and runs some tests. 
 ``` 
 bash ./setupandtest.sh --mysqlrootpass $mysqlrootpass --postgresport $postgresport --postgresuser $PGUSERWITHSUPER --postgrespass  $PGUSERPASS
 ```
 
-To use in your project, you'll need to fiddle a bit: you need to add a user to your mysql db, give it replication rights, and put those credentials as well as creds to your posgres db in the main pgTriggers.js file, and run this as a seperate process, with (if you start to dig this you should use pm2):
+To use in your project, you'll need to fiddle a bit: you need to add a user to your mysql db, give it replication rights, and put those credentials as well as creds to your posgres db in the main rosettable.js file, and run this as a seperate process, with (if you start to dig this you should use pm2):
 ```
-	node pgTriggers.js
+	node rosettable.js
 ```
 
  External configs and maybe a webservice might be coming next. Please let me know if this is useful, cheerio, stay safe.:	[🌈]( https://www.youtube.com/watch?v=zsk6z9O1WmE)

@@ -145,7 +145,7 @@ BEGIN
 		NEW.pgrti = (9223372036854773427*random());
 	END IF;
   --RAISE LOG 'aaatrig_upins_pgrti';
-  --RAISE NOTICE 'aaatrig_upins_pgrti %', row_to_json(NEW)::text;
+  RAISE NOTICE 'aaatrig_upins_pgrti %', row_to_json(NEW)::text;
   return NEW;
 
 END;
@@ -176,12 +176,14 @@ BEGIN
 	IF NOT(trigrow->'pgrti' is NULL) THEN
 		--we wrap the next statement with session_replication_role to prevent firing the update triggers in pg
 		--SET session_replication_role = replica;
-		ALTER TABLE `+foreignschemas[i]+`.`+tableName+` DISABLE TRIGGER aaatrigup_pgrti;
+		-- BUG disabling the trigger alters the table 
+		--ALTER TABLE `+foreignschemas[i]+`.`+tableName+` DISABLE TRIGGER aaatrigup_pgrti;
 		RAISE NOTICE 'silently setting pgrti to -42424242 to mark this delete as coming from pg';
 		 -- this is sentinel value, by changing the value we'll ignore the update in our mysql binlog watch deamon, the sentinel value tags this as a pg delete.
-		EXECUTE('UPDATE '||TG_TABLE_SCHEMA||'.'||TG_TABLE_NAME||' set pgrti = -42424242 ' || whereClause || ';');
+		-- THERE IS AN ISSUE HERE: ALL  TRIGGERS ON THIS TABLE WILL BE FIRED
+		EXECUTE('UPDATE '||TG_TABLE_SCHEMA||'.'||TG_TABLE_NAME||' set pgrti = -774277 ' || whereClause || ';');
 		--SET session_replication_role = DEFAULT;
-		ALTER TABLE `+foreignschemas[i]+`.`+tableName+` ENABLE TRIGGER aaatrigup_pgrti;
+		--ALTER TABLE `+foreignschemas[i]+`.`+tableName+` ENABLE TRIGGER aaatrigup_pgrti;
 	END IF;
 	--RAISE LOG 'aaatrig_del_pgrti';
 	--RAISE NOTICE 'aaatrig_del_pgrti %', row_to_json(OLD)::text;
@@ -688,7 +690,7 @@ zongji.on('binlog', function(evt) {
 									}
 									//console.log('-------FAKEOLD:'+ fakeOLD);
 									//console.log('-------fakeNEW:'+ fakeNEW);
-									//beforeproc.customprosrc += `select pg_temp.`+beforeproc.procname+`(old,new) from (`+fakeOLD+`) as old,(`+fakeNEW+`) as new;`;
+									beforeproc.customprosrc += `select pg_temp.`+beforeproc.procname+`(old,new) from (`+fakeOLD+`) as old,(`+fakeNEW+`) as new;`;
 								}
 								//console.log('beforeproc.customprosrc:'+beforeproc.customprosrc);
 								beforetrigger_res =await pgclient.query(beforeproc.customprosrc);
@@ -1041,7 +1043,7 @@ zongji.on('binlog', function(evt) {
 
 						//-42424242 is sentinel value that we set in a postgres before trigger (this one is ignored by the current system) to identify deletes coming from postgres
 						//42 is the sentinel when the pgrti has just been created in addpgrti
-						if(!("pgrti" in evt.rows[0]) || (evt.rows[0].pgrti != -42424242 && evt.rows[0].pgrti != 42) )
+						if(!("pgrti" in evt.rows[0]) || (evt.rows[0].pgrti != -42424242 && evt.rows[0].pgrti != -774277 && evt.rows[0].pgrti != 42) )
 						{
 							console.log("FIRE POSTGRES DELETE TRIGGERS:" + evt.getTypeName() + ' ON ' + evt.tableMap[evt.tableId].tableName);
 							

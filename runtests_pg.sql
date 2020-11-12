@@ -3,7 +3,7 @@ select 'RUNNING TESTS';
 
 insert into fs_mqltestdb.employee values(default,'firsop_pg',2);
 select 'OUR FIRST OP CAUSED THE PGRTI FIELD TO BE CREATED if we dont wait a few seconds all the operations will be queued before we are done creating the structures';
-select pg_sleep(1); 
+select pg_sleep(3); 
 
 select 'check that the before insert trigger runs only once';
 insert into fs_mqltestdb.employee values(default,'runoncealice',2);

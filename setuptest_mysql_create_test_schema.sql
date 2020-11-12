@@ -6,16 +6,20 @@ CREATE USER 'pgtriggersd'@'localhost' IDENTIFIED BY 'pointandshoot';
 GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO 'pgtriggersd'@'localhost';
 FLUSH PRIVILEGES;
 
--- this role is used by our deamon to alter the schema to add a col on first use, and to revert changes when before triggers in pg would mandate 
-DROP USER IF EXISTS 'pgtriggerscl'@'localhost';
-CREATE USER 'pgtriggerscl'@'localhost' IDENTIFIED BY 'pointandshoot2';
-GRANT SELECT, UPDATE, INSERT, DELETE, ALTER ON *.* TO 'pgtriggerscl'@'localhost';
-FLUSH PRIVILEGES;
+
 
 -- create a test database 
 DROP DATABASE IF EXISTS mqltestdb;
 CREATE DATABASE mqltestdb;
 USE mqltestdb;
+
+-- this role is used by our deamon to alter the schema to add a col on first use, and to revert changes when before triggers in pg would mandate 
+DROP USER IF EXISTS 'pgtriggerscl'@'localhost';
+CREATE USER 'pgtriggerscl'@'localhost' IDENTIFIED BY 'pointandshoot2';
+-- GRANT SELECT, UPDATE, INSERT, DELETE, ALTER ON *.* TO 'pgtriggerscl'@'localhost';
+GRANT SELECT, CREATE, UPDATE, INSERT, DELETE,LOCK TABLES, ALTER ON mqltestdb.* TO 'pgtriggerscl'@'localhost';
+FLUSH PRIVILEGES;
+
 -- our tables
 create table employee(emp_id int NOT NULL AUTO_INCREMENT PRIMARY KEY, emp_name text, emp_dept_id int, trigg_count int);
 -- populate with some fake data
