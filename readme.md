@@ -2,7 +2,7 @@
 
 Wouldn't it be nice if we were over C19? Ok well in the mean time here's a hack that you might like (and a [song](https://www.youtube.com/watch?v=lD4sxxoJGkA) to cheer you up while you read this): 
 
-Postgres is the awesomest RDBMS out there, with some really cool stuff baked in --stored procedures in many languages, triggers, JSON-native, pubsub like pg_notify etc...(last with postgraphile/GraphQL is simply sublime). 
+Postgres is the awesomest RDBMS out there, with some really cool stuff baked in --stored procedures in many languages, triggers, JSON-native, pubsub like pg_notify etc...(last with postgraphile/GraphQL is simply soo... sublime). 
 
 Yet a lot of great open-source software developers have chosen mysql/mariadb/mongodb over it in the past. Personal choices cannot be discussed. So to contribute to these nice software projects (mailtrain, matomo, etc) you have to do the LAMP dance... That might turn you off, social distancing and all. You could use [pgchameleon](https://pgchameleon.org/), but that only works one way, mysql to postgres, and you now have to two copies of everything. And you now have to two copies of everything.
 
@@ -16,7 +16,7 @@ create schema mysql_msqldatabase;
 IMPORT FOREIGN SCHEMA msqldatabase FROM SERVER mysql_server INTO mysql_msqldatabase;
 ```
 
-You can define triggers on your IMPORTed FOREIGN SCHEMA. Nice! So say you add a trigger to a foreign data table named employee. When you UPDATE a row in employee via a postgres connection, your trigger will get called. Yay! But what if a table is modified via an app that has a connection to the mysqld, not to your shinny new postgres FDW?
+You can define triggers on your IMPORTed FOREIGN SCHEMA. Niiice! So say you add a trigger to a foreign data table named employee. When you UPDATE a row in employee via a postgres connection, your trigger will get called. Yay! But what if a table is modified via an app that has a connection to the mysqld, not to your shinny new postgres FDW?
 
 No triggers for you...	😢
 
@@ -24,11 +24,11 @@ This is where this hack comes in!!! 👍	😛
 
 Using mysql's binlog(thru a cool evt reader call zongji) and a few schema queries this node app will fire your postgres PLPgSQL triggers for you! (well not really, it repackages and executes your triggers' code post-commit) 
 
-But, you ask, what if I modified the NEW row in the before trigger? Or set it to NULL to prevent the operation? Well that works too! The post-before value of NEW is compared with the pre-value and silent UPDATES are issued. There's a 20% chance of bugs, please report. 
+But, you ask, what if I modified the NEW row in the before trigger? Or set it to NULL to prevent the operation? Well that works too! The post-before value of NEW is compared with the pre-value and silent UPDATES are issued. There's a 80% chance of bugs with this BEFORE pg trigger business, please report. 
 
 ## Caveat
 
-This app adds an optional column named pgrti on the fly to any mysql table for which you add a trigger in postgres. This means that if you have inserts that do not specify the columns in your MySQL schema you'll need to edit some statements; for example:
+This app adds an optional column named pgrti on the fly to any mysql table for which you add a trigger in your postgres foreign schema. This means that if you have inserts that do not specify the columns in your MySQL schema you'll need to edit some statements; for example:
 
 ```
 INSERT INTO employee VALUES (DEFAULT, 'MYSQLINSERT--',2);
@@ -44,10 +44,11 @@ The current mysql_fdw (2.5) has a few limitations, text fields over 64K will cau
 
 ## How to test/use
 
-0. This requires a small bugfix that has not made it yet to the MySQL FDW distribution. Please get it here: https://github.com/francoisp/mysql_fdw
+~~0. This requires a small bugfix that has not made it yet to the MySQL FDW distribution. Please get it here: https://github.com/francoisp/mysql_fdw~~
+mysql_fdw has been updated! If you have version 2.5.5 you are good to go!
 
 ```
---follow instructions to make and install the updated myslq_fdw -- for now --. Hopefully the PR will merge upstream soon
+~~ --follow instructions to make and install the updated myslq_fdw -- for now --. Hopefully the PR will merge upstream soon ~~
 ```
 
 1. Enable MySQL binlog in my.cnf (ubuntu:/etc/mysql/my.cnf YMMV), restart MySQL server after making these changes.
