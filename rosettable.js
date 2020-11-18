@@ -234,8 +234,8 @@ async function addpgrti(evtrow,foreignschemas,tableName,pgclient, pg_only = fals
 				connection.connect();
 				//-- if we have null the insert came via mysqld. insert via pg will have positive val
 				//-- having a non null value allows us to distinguish never pg-altered deletes without using id col
-					   
-				connection.query(`ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL; SET GLOBAL log_bin_trust_function_creators = 1; DROP TRIGGER IF EXISTS aaabefore_`+tableName+`_insert;  CREATE TRIGGER aaabefore_`+tableName+`_insert BEFORE INSERT ON `+tableName+` FOR EACH ROW BEGIN IF NEW.pgrti is NULL THEN SET NEW.pgrti = -(9223372036854773427*RAND()); END IF; END ; LOCK TABLES `+tableName+`  WRITE;`, async function (error, results, fields) {
+				var mysqladdpgrti = `LOCK TABLES `+tableName+`  WRITE; ALTER TABLE `+tableName+` ADD pgrti BIGINT DEFAULT NULL; SET GLOBAL log_bin_trust_function_creators = 1; DROP TRIGGER IF EXISTS aaabefore_`+tableName+`_insert;  CREATE TRIGGER aaabefore_`+tableName+`_insert BEFORE INSERT ON `+tableName+` FOR EACH ROW BEGIN IF NEW.pgrti is NULL THEN SET NEW.pgrti = -(9223372036854773427*RAND()); END IF; END ; UNLOCK TABLES;`;  	   
+				connection.query(mysqladdpgrti, async function (error, results, fields) {
 				  if (error) throw error;
 				  
 				   	addpgrti_pg(foreignschemas,tableName,pgclient)
