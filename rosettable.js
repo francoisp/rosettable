@@ -250,7 +250,8 @@ async function addpgrti(evtrow,foreignschemas,tableName,pgclient, pg_only = fals
 				
 			// this is very weird and a hack, if we dont slow down a bit, the actual event that triggerd adding pgrti will not see the new col
 			await sleep(100);
-			console.log("DONE ALTERING SCHEMAS")
+			console.log("DONE ALTERING SCHEMAS");
+			addingpgrtimutex = false;
 		}
 	});
 }
