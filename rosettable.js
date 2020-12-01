@@ -58,6 +58,7 @@ if(fs.existsSync(configPath))
 	zongji_conf = parsed.zongji_conf;
 	pgconfig = parsed.pgconfig;
 	mysqlconfig = parsed.mysqlconfig;
+	mysqlELEVATEDconfig = parsed.mysqlELEVATEDconfig;
 }else
 	console.log("WARNINGL DID NOT READ CONFIG FILE: INTEGRATED TESTING")
 
