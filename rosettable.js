@@ -929,7 +929,7 @@ zongji.on('binlog', function(evt) {
 									beforeproc.customprosrc += `select pg_temp.`+beforeproc.procname+`(evtro) from (`+fakeNEW+`) as evtro;`;
 								}
 								//console.log('beforeproc.customprosrc\n'+beforeproc.customprosrc);
-								const beforetrigger_res =await pgclient.query(beforeproc.customprosrc);
+								beforetrigger_res =await pgclient.query(beforeproc.customprosrc);
 								//console.log(beforetrigger_res);
 								var updtstmt = '';
 								for (var i = evt.rows.length - 1; i >= 0; i--) {
